@@ -147,6 +147,13 @@ __all__ = [
     "JudgeModelResult",
     "JudgeConfig",
     "TranslationError",
+    "TranslationErrorAccuracy",
+    "TranslationErrorFluency",
+    "TranslationErrorStyle",
+    "TranslationErrorTerminology",
+    "TranslationErrorNontranslation",
+    "TranslationErrorOther",
+    "TranslationErrorNoerror",
     "QualityEstimation",
     "annotate_csv",
 ]
@@ -155,5 +162,15 @@ __author__ = "Micha Johannes Birklbauer"
 
 from ._main import main
 from ._judge import Judge, JudgeResult, JudgeModelResult, JudgeConfig
-from ._translation import TranslationError, QualityEstimation
+from ._translation import (
+    TranslationError,
+    TranslationErrorAccuracy,
+    TranslationErrorFluency,
+    TranslationErrorStyle,
+    TranslationErrorTerminology,
+    TranslationErrorNontranslation,
+    TranslationErrorOther,
+    TranslationErrorNoerror,
+    QualityEstimation,
+)
 from ._util import annotate_csv
