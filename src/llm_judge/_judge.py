@@ -400,8 +400,18 @@ class _OpenAIModel:
         if os.path.isfile("env.json"):
             with open("env.json", encoding="utf-8") as f:
                 env = json.load(f)
+                if "OPENAI_API_KEY" not in env:
+                    logger.error("File 'env.json' does not contain a OPENAI_API_KEY!")
+                    raise KeyError("File 'env.json' does not contain a OPENAI_API_KEY!")
                 logger.info("Got OPENAI_API_KEY from env.json file.")
                 return str(env["OPENAI_API_KEY"]).strip()
+        if os.path.isfile(".env"):
+            env = __read_env(".env")
+            if "OPENAI_API_KEY" not in env:
+                logger.error("File '.env' does not contain a OPENAI_API_KEY!")
+                raise KeyError("File '.env' does not contain a OPENAI_API_KEY!")
+            logger.info("Got OPENAI_API_KEY from .env file.")
+            return str(env["OPENAI_API_KEY"]).strip()
         logger.error(
             "Could not get an API key for OpenAI! Searched for 'OPENAI_API_KEY'."
         )
@@ -612,8 +622,22 @@ class _AnthropicModel:
         if os.path.isfile("env.json"):
             with open("env.json", encoding="utf-8") as f:
                 env = json.load(f)
+                if "ANTHROPIC_API_KEY" not in env:
+                    logger.error(
+                        "File 'env.json' does not contain a ANTHROPIC_API_KEY!"
+                    )
+                    raise KeyError(
+                        "File 'env.json' does not contain a ANTHROPIC_API_KEY!"
+                    )
                 logger.info("Got ANTHROPIC_API_KEY from env.json file.")
                 return str(env["ANTHROPIC_API_KEY"]).strip()
+        if os.path.isfile(".env"):
+            env = __read_env(".env")
+            if "ANTHROPIC_API_KEY" not in env:
+                logger.error("File '.env' does not contain a ANTHROPIC_API_KEY!")
+                raise KeyError("File '.env' does not contain a ANTHROPIC_API_KEY!")
+            logger.info("Got ANTHROPIC_API_KEY from .env file.")
+            return str(env["ANTHROPIC_API_KEY"]).strip()
         logger.error(
             "Could not get an API key for Anthropic! Searched for 'ANTHROPIC_API_KEY'."
         )
@@ -825,8 +849,18 @@ class _GoogleModel:
         if os.path.isfile("env.json"):
             with open("env.json", encoding="utf-8") as f:
                 env = json.load(f)
+                if "GEMINI_API_KEY" not in env:
+                    logger.error("File 'env.json' does not contain a GEMINI_API_KEY!")
+                    raise KeyError("File 'env.json' does not contain a GEMINI_API_KEY!")
                 logger.info("Got GEMINI_API_KEY from env.json file.")
                 return str(env["GEMINI_API_KEY"]).strip()
+        if os.path.isfile(".env"):
+            env = __read_env(".env")
+            if "GEMINI_API_KEY" not in env:
+                logger.error("File '.env' does not contain a GEMINI_API_KEY!")
+                raise KeyError("File '.env' does not contain a GEMINI_API_KEY!")
+            logger.info("Got GEMINI_API_KEY from .env file.")
+            return str(env["GEMINI_API_KEY"]).strip()
         logger.error(
             "Could not get an API key for Google Gemini! Searched for 'GEMINI_API_KEY'."
         )
