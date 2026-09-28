@@ -34,6 +34,49 @@ from ._constants import OLLAMA_HOST, OLLAMA_DEFAULT_MODEL, OLLAMA_KEEP_ALIVE
 logger = logging.getLogger(__name__)
 
 
+# helper function to read .env files
+def __read_env(env_file: str = ".env") -> dict[str, str]:
+    # check file exists
+    if not os.path.isfile(env_file):
+        logger.error(f"'{env_file}' not found!")
+        raise OSError(f"'{env_file}' not found!")
+    env_content: str | None = None
+    # read file
+    with open(env_file, "r", encoding="utf-8") as f:
+        env_content = f.read()
+    if env_content is None:
+        logger.error(f"Could not read '{env_file}' file!")
+        raise RuntimeError(f"Could not read '{env_file}' file!")
+    # parse file
+    env_dict: dict[str, str] = dict()
+    for i, line in enumerate(env_content.split("\n")):
+        # skip comment lines
+        if line.strip().startswith("#"):
+            continue
+        # skip empty lines
+        if len(line.strip()) == 0:
+            continue
+        # check valid env line
+        if "=" not in line.strip():
+            logger.error(f"Invalid .env line [{i + 1}] in {env_file}!")
+            raise RuntimeError(f"Invalid .env line [{i + 1}] in {env_file}!")
+        # parse key value pairs
+        line_parts = line.strip().split("=")
+        line_key = line_parts[0].strip().strip('"').strip()
+        line_value = "=".join(line_parts[1:]).strip().strip('"').strip()
+        if line_key in env_dict:
+            logger.error(
+                f"Found duplicate environment variable {line_key} "
+                f"in env file {env_file}!"
+            )
+            raise RuntimeError(
+                f"Found duplicate environment variable {line_key} "
+                f"in env file {env_file}!"
+            )
+        env_dict[line_key] = line_value
+    return env_dict
+
+
 class JudgeModelResult(BaseModel):
     r"""Quality estimation result for one specific query and LLM."""
 
