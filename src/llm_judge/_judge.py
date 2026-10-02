@@ -1864,3 +1864,143 @@ class Judge:
                 mt_lang=mt_lang,
             ),
         )
+
+    def score_and_annotate(
+        self, src: str, mt: str, src_lang: str, mt_lang: str
+    ) -> JudgeResult:
+        r"""Performs quality estimation with annotation.
+
+        Performs quality estimation with error annotation using all setup LLMs
+        for one translation. The type of ``JudgeModelResult.quality_estimation``
+        for each applied LLM will always be ``QualityEstimationAnnotated`` - if
+        a successful reponse was received.
+
+        Parameters
+        ----------
+        src : str
+            The source text.
+        mt : str
+            The machine translation.
+        src_lang : str
+            The language of the source text, e.g. ``"English"``.
+        mt_lang : str
+            The language of the machine translation, e.g. ``"German"``.
+
+        Returns
+        -------
+        JudgeResult
+            The results of all LLMs in a result container, see ``JudgeResult``.
+
+        Raises
+        ------
+        RuntimeError
+            If the Judge instance is already closed.
+
+        Examples
+        --------
+        >>> from llm_judge import Judge
+        >>> judge = Judge(
+        ...     openai=False, anthropic=False, google=False, ollama="mistral:7b"
+        ... )
+        >>> jr = judge.score_and_annotate(
+        ...     src="The mitochondria is the powerhouse of the cell.",
+        ...     mt="Das Mitochondrium ist das Kraftwerk der Zelle.",
+        ...     src_lang="English",
+        ...     mt_lang="German",
+        ... )
+        >>> type(jr)
+        <class 'llm_judge._judge.JudgeResult'>
+        >>> jr.openai is None
+        True
+        >>> jr.anthropic is None
+        True
+        >>> jr.google is None
+        True
+        >>> jr.ollama is None
+        False
+        >>> type(jr.ollama)
+        <class 'llm_judge._judge.JudgeModelResult'>
+        >>> jr.ollama.model
+        'mistral:7b'
+        >>> jr.ollama.score
+        0.95
+        >>> type(jr.ollama.quality_estimation)
+        <class 'llm_judge._translation.QualityEstimationAnnotated'>
+        >>> judge.close()
+
+        >>> from llm_judge import Judge
+        >>> judge = Judge(
+        ...     openai=False,
+        ...     anthropic=False,
+        ...     google=False,
+        ...     ollama=True,
+        ...     config="config/judge_config.toml",
+        ... )
+        >>> jr = judge.score_and_annotate(
+        ...     src="The mitochondria is the powerhouse of the cell.",
+        ...     mt="Das Mitochondrium ist das Kraftwerk der Zelle.",
+        ...     src_lang="English",
+        ...     mt_lang="German",
+        ... )
+        >>> type(jr)
+        <class 'llm_judge._judge.JudgeResult'>
+        >>> jr.openai is None
+        True
+        >>> jr.anthropic is None
+        True
+        >>> jr.google is None
+        True
+        >>> jr.ollama is None
+        False
+        >>> type(jr.ollama)
+        <class 'llm_judge._judge.JudgeModelResult'>
+        >>> jr.ollama.model
+        'qwen3.8:27b'
+        >>> jr.ollama.score
+        1.0
+        >>> type(jr.ollama.quality_estimation)
+        <class 'llm_judge._translation.QualityEstimationAnnotated'>
+        >>> judge.close()
+        """
+        if self.closed:
+            logger.error("Judge instance is already closed!")
+            raise RuntimeError("Judge instance is already closed!")
+
+        return JudgeResult(
+            openai=_OpenAIModel._get_openai_response(
+                client=self.__openai,
+                schema=QualityEstimationAnnotated,
+                config=self.config,
+                src=src,
+                mt=mt,
+                src_lang=src_lang,
+                mt_lang=mt_lang,
+            ),
+            anthropic=_AnthropicModel._get_anthropic_response(
+                client=self.__anthropic,
+                schema=QualityEstimationAnnotated,
+                config=self.config,
+                src=src,
+                mt=mt,
+                src_lang=src_lang,
+                mt_lang=mt_lang,
+            ),
+            google=_GoogleModel._get_gemini_response(
+                client=self.__google,
+                schema=QualityEstimationAnnotated,
+                config=self.config,
+                src=src,
+                mt=mt,
+                src_lang=src_lang,
+                mt_lang=mt_lang,
+            ),
+            ollama=_OllamaModel._get_ollama_response(
+                client=self.__ollama,
+                schema=QualityEstimationAnnotated,
+                config=self.config,
+                src=src,
+                mt=mt,
+                src_lang=src_lang,
+                mt_lang=mt_lang,
+            ),
+        )
