@@ -1115,6 +1115,7 @@ class _OllamaModel:
                 keep_alive=config.ollama_keep_alive,
                 options={
                     "num_predict": config.max_output_tokens,
+                    "num_ctx": config.ollama_context_length,
                     "seed": config.seeds[retry],
                 },
             )
@@ -1220,6 +1221,7 @@ class _OllamaModel:
                 status="ok",
                 parameters={
                     "num_predict": str(config.max_output_tokens),
+                    "num_ctx": str(config.ollama_context_length),
                     "seed": str(config.seeds[retry]),
                 },
                 response=str(response),
@@ -1280,6 +1282,7 @@ class _OllamaModel:
                 keep_alive=config.ollama_keep_alive,
                 options={
                     "num_predict": config.max_output_tokens,
+                    "num_ctx": config.ollama_context_length,
                     "seed": config.seeds[retry],
                 },
             )
@@ -1321,6 +1324,7 @@ class _OllamaModel:
                 status="error",
                 parameters={
                     "num_predict": str(config.max_output_tokens),
+                    "num_ctx": str(config.ollama_context_length),
                     "seed": str(config.seeds[retry]),
                 },
                 response=None,
@@ -1348,6 +1352,7 @@ class _OllamaModel:
                 status="error",
                 parameters={
                     "num_predict": str(config.max_output_tokens),
+                    "num_ctx": str(config.ollama_context_length),
                     "seed": str(config.seeds[retry]),
                 },
                 response=str(response),
@@ -1367,6 +1372,7 @@ class _OllamaModel:
                 status="ok",
                 parameters={
                     "num_predict": str(config.max_output_tokens),
+                    "num_ctx": str(config.ollama_context_length),
                     "seed": str(config.seeds[retry]),
                 },
                 response=str(response),
@@ -1395,6 +1401,7 @@ class _OllamaModel:
                     status="error",
                     parameters={
                         "num_predict": str(config.max_output_tokens),
+                        "num_ctx": str(config.ollama_context_length),
                         "seed": str(config.seeds[retry]),
                     },
                     response=str(response),
@@ -1421,6 +1428,7 @@ class _OllamaModel:
                     status="error",
                     parameters={
                         "num_predict": str(config.max_output_tokens),
+                        "num_ctx": str(config.ollama_context_length),
                         "seed": str(config.seeds[retry]),
                     },
                     response=str(response),
@@ -1436,6 +1444,7 @@ class _OllamaModel:
             status="error",
             parameters={
                 "num_predict": str(config.max_output_tokens),
+                "num_ctx": str(config.ollama_context_length),
                 "seed": str(config.seeds[retry]),
             },
             response=str(response) if response is not None else None,
