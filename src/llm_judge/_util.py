@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 def annotate_csv(
     input_file: str,
     judge: Judge,
-    scores_only: bool = False,
+    score_only: bool = False,
     output_file: Optional[str] = None,
 ) -> tuple[pl.DataFrame, list[JudgeResult]]:
     r"""Quality estimation for a list of translations in a '.csv' file using LLMs.
@@ -31,7 +31,7 @@ def annotate_csv(
         Path/name of the translations '.csv' file containing the columns ``src``, ``mt``, ``src_lang``, and ``mt_lang``.
     judge : Judge
         The judge to be used for quality estimation.
-    scores_only : bool, default = False
+    score_only : bool, default = False
         If ``True`` translations will only be scored without error annotation. If ``True`` the function ``Judge.score()``
         is called, otherwise (default) ``Judge.score_and_annotate()`` is called.
     output_file : str, or None, default = None
@@ -87,7 +87,7 @@ def annotate_csv(
                 src_lang=str(row["src_lang"]).strip(),
                 mt_lang=str(row["mt_lang"]).strip(),
             )
-            if scores_only
+            if score_only
             else judge.score_and_annotate(
                 src=str(row["src"]).strip(),
                 mt=str(row["mt"]).strip(),
