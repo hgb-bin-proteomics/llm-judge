@@ -65,6 +65,14 @@ def main(argv: Optional[list[str]] = None) -> int:
         type=str,
     )
     parser.add_argument(
+        "-s",
+        "--score-only",
+        dest="score_only",
+        action="store_true",
+        default=False,
+        help="only calculate quality estimation scores without error annotation.",
+    )
+    parser.add_argument(
         "--openai",
         dest="openai",
         action="store_true",
@@ -123,13 +131,23 @@ def main(argv: Optional[list[str]] = None) -> int:
         if args.ollama:
             logger.info(f"Selected Ollama model: {judge.config.ollama_model}")
 
+        score_only = bool(args.score_only)
+        if score_only:
+            logger.info("Running in 'score only' mode!")
+
         df, _result = annotate_csv(
-            input_file=args.input, judge=judge, output_file=args.output
+            input_file=args.input,
+            judge=judge,
+            score_only=score_only,
+            output_file=args.output,
         )
         print(df)
 
         judge.close()
-        logger.info("Successfully scored and annotated all translations!")
+        if score_only:
+            logger.info("Successfully scored all translations!")
+        else:
+            logger.info("Successfully scored and annotated all translations!")
     except Exception as _e:
         logger.exception("An error occurred while running the script!")
         return 1
