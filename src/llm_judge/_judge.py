@@ -25,6 +25,7 @@ from types import TracebackType
 from typing import Optional, Annotated, Any, Literal, override
 
 from ._translation import QualityEstimation
+from ._constants import SYSTEM_INSTRUCTION
 from ._constants import MAX_RETRY, MAX_OUTPUT_TOKENS, RETRY_WAIT_TIME, SEEDS
 from ._constants import OPENAI_MODEL, OPENAI_THINKING_LEVEL
 from ._constants import ANTHROPIC_MODEL, ANTHROPIC_THINKING_LEVEL
@@ -422,26 +423,7 @@ class _OpenAIModel:
 
     @staticmethod
     def _get_system_instruction() -> str:
-        # slightly adopted prompt from the MetricX 25 paper
-        return """
-            You are an annotator for the quality of machine translation. Your task is to
-            identify errors and assess the quality of the translation.
-            Based on the source segment, human-generated reference translation, and machine
-            translation surrounded with triple backticks, identify error types in the
-            translation and classify them. The categories of errors are: accuracy
-            (addition, mistranslation, omission, untranslated text), fluency (character
-            encoding, grammar, inconsistency, punctuation, register, spelling), style
-            (awkward), terminology (inappropriate for context, inconsistent use),
-            non-translation, other, or no-error.
-            Each error is classified as one of three severities: critical, major, and minor.
-            Critical errors inhibit comprehension of the text. Major errors disrupt the
-            flow, but what the text is trying to say is still understandable. Minor errors
-            are technically errors, but do not disrupt the flow or hinder comprehension.
-            Give a quality estimation as a value between 0 and 1 where 0 is complete gibberish
-            and 1 would be a perfect translation.
-            Make sure your response is a strict and valid json object that could be parsed with
-            json.loads() in python.
-            """
+        return SYSTEM_INSTRUCTION
 
     @staticmethod
     def _get_user_instruction(
@@ -648,26 +630,7 @@ class _AnthropicModel:
 
     @staticmethod
     def _get_system_instruction() -> str:
-        # slightly adopted prompt from the MetricX 25 paper
-        return """
-            You are an annotator for the quality of machine translation. Your task is to
-            identify errors and assess the quality of the translation.
-            Based on the source segment, human-generated reference translation, and machine
-            translation surrounded with triple backticks, identify error types in the
-            translation and classify them. The categories of errors are: accuracy
-            (addition, mistranslation, omission, untranslated text), fluency (character
-            encoding, grammar, inconsistency, punctuation, register, spelling), style
-            (awkward), terminology (inappropriate for context, inconsistent use),
-            non-translation, other, or no-error.
-            Each error is classified as one of three severities: critical, major, and minor.
-            Critical errors inhibit comprehension of the text. Major errors disrupt the
-            flow, but what the text is trying to say is still understandable. Minor errors
-            are technically errors, but do not disrupt the flow or hinder comprehension.
-            Give a quality estimation as a value between 0 and 1 where 0 is complete gibberish
-            and 1 would be a perfect translation.
-            Make sure your response is a strict and valid json object that could be parsed with
-            json.loads() in python.
-            """
+        return SYSTEM_INSTRUCTION
 
     @staticmethod
     def _get_user_instruction(
@@ -876,26 +839,7 @@ class _GoogleModel:
         src_lang: str,
         mt_lang: str,
     ) -> str:
-        # slightly adopted prompt from the MetricX 25 paper
-        base = """
-            You are an annotator for the quality of machine translation. Your task is to
-            identify errors and assess the quality of the translation.
-            Based on the source segment, human-generated reference translation, and machine
-            translation surrounded with triple backticks, identify error types in the
-            translation and classify them. The categories of errors are: accuracy
-            (addition, mistranslation, omission, untranslated text), fluency (character
-            encoding, grammar, inconsistency, punctuation, register, spelling), style
-            (awkward), terminology (inappropriate for context, inconsistent use),
-            non-translation, other, or no-error.
-            Each error is classified as one of three severities: critical, major, and minor.
-            Critical errors inhibit comprehension of the text. Major errors disrupt the
-            flow, but what the text is trying to say is still understandable. Minor errors
-            are technically errors, but do not disrupt the flow or hinder comprehension.
-            Give a quality estimation as a value between 0 and 1 where 0 is complete gibberish
-            and 1 would be a perfect translation.
-            Make sure your response is a strict and valid json object that could be parsed with
-            json.loads() in python.
-            """
+        base = SYSTEM_INSTRUCTION
         return f"{base}{src_lang} source: ```{src}```\n{mt_lang} machine translation: ```{mt}```"
 
     @staticmethod
@@ -1089,26 +1033,7 @@ class _GoogleModel:
 class _OllamaModel:
     @staticmethod
     def _get_system_instruction() -> str:
-        # slightly adopted prompt from the MetricX 25 paper
-        return """
-            You are an annotator for the quality of machine translation. Your task is to
-            identify errors and assess the quality of the translation.
-            Based on the source segment, human-generated reference translation, and machine
-            translation surrounded with triple backticks, identify error types in the
-            translation and classify them. The categories of errors are: accuracy
-            (addition, mistranslation, omission, untranslated text), fluency (character
-            encoding, grammar, inconsistency, punctuation, register, spelling), style
-            (awkward), terminology (inappropriate for context, inconsistent use),
-            non-translation, other, or no-error.
-            Each error is classified as one of three severities: critical, major, and minor.
-            Critical errors inhibit comprehension of the text. Major errors disrupt the
-            flow, but what the text is trying to say is still understandable. Minor errors
-            are technically errors, but do not disrupt the flow or hinder comprehension.
-            Give a quality estimation as a value between 0 and 1 where 0 is complete gibberish
-            and 1 would be a perfect translation.
-            Make sure your response is a strict and valid json object that could be parsed with
-            json.loads() in python.
-            """
+        return SYSTEM_INSTRUCTION
 
     @staticmethod
     def _get_user_instruction(
