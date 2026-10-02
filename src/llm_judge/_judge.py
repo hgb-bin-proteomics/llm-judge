@@ -24,8 +24,8 @@ from pydantic import BaseModel, Field, ConfigDict, computed_field
 from types import TracebackType
 from typing import Optional, Annotated, Any, Literal, override
 
-from ._translation import QualityEstimation
-from ._constants import SYSTEM_INSTRUCTION
+from ._translation import QualityEstimation, QualityEstimationAnnotated
+from ._constants import SYSTEM_INSTRUCTION_SCORE, SYSTEM_INSTRUCTION_ANNOTATE
 from ._constants import MAX_RETRY, MAX_OUTPUT_TOKENS, RETRY_WAIT_TIME, SEEDS
 from ._constants import OPENAI_MODEL, OPENAI_THINKING_LEVEL
 from ._constants import ANTHROPIC_MODEL, ANTHROPIC_THINKING_LEVEL
@@ -107,7 +107,7 @@ class JudgeModelResult(BaseModel):
     ]
     r"""The LLM response as raw text."""
     quality_estimation: Annotated[
-        Optional[QualityEstimation],
+        Optional[QualityEstimation | QualityEstimationAnnotated],
         Field(frozen=True, description="The quality estimation returned by the LLM."),
     ]
     r"""The quality estimation returned by the LLM."""
@@ -448,8 +448,16 @@ class _OpenAIModel:
         return "err"
 
     @staticmethod
-    def _get_system_instruction() -> str:
-        return SYSTEM_INSTRUCTION
+    def _get_system_instruction(
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
+    ) -> str:
+        if schema is QualityEstimation:
+            return SYSTEM_INSTRUCTION_SCORE
+        elif schema is QualityEstimationAnnotated:
+            return SYSTEM_INSTRUCTION_ANNOTATE
+        else:
+            raise TypeError(f"Unsupported schema type: {schema}!")
+        return "err"
 
     @staticmethod
     def _get_user_instruction(
@@ -466,6 +474,7 @@ class _OpenAIModel:
     @staticmethod
     def _get_openai_response(
         client: Optional[OpenAI],
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
         config: JudgeConfig,
         src: str,
         mt: str,
@@ -475,7 +484,7 @@ class _OpenAIModel:
     ) -> JudgeModelResult | None:
         if client is None:
             return None
-        system_instruction: str = _OpenAIModel._get_system_instruction()
+        system_instruction: str = _OpenAIModel._get_system_instruction(schema)
         user_instruction: str = _OpenAIModel._get_user_instruction(
             src=src, mt=mt, src_lang=src_lang, mt_lang=mt_lang
         )
@@ -491,7 +500,7 @@ class _OpenAIModel:
                 ],
                 # # https://developers.openai.com/api/docs/guides/reasoning?api-mode=responses
                 reasoning={"effort": config.openai_thinking_level},
-                text_format=QualityEstimation,
+                text_format=schema,
                 max_output_tokens=config.max_output_tokens,
             )
         except Exception as e:
@@ -502,6 +511,7 @@ class _OpenAIModel:
                 time.sleep(config.retry_wait_time)
                 return _OpenAIModel._get_openai_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -526,6 +536,7 @@ class _OpenAIModel:
             if retry < config.max_retry:
                 return _OpenAIModel._get_openai_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -550,6 +561,7 @@ class _OpenAIModel:
             if retry < config.max_retry:
                 return _OpenAIModel._get_openai_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -588,6 +600,7 @@ class _OpenAIModel:
             if retry < config.max_retry:
                 return _OpenAIModel._get_openai_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -655,8 +668,16 @@ class _AnthropicModel:
         return "err"
 
     @staticmethod
-    def _get_system_instruction() -> str:
-        return SYSTEM_INSTRUCTION
+    def _get_system_instruction(
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
+    ) -> str:
+        if schema is QualityEstimation:
+            return SYSTEM_INSTRUCTION_SCORE
+        elif schema is QualityEstimationAnnotated:
+            return SYSTEM_INSTRUCTION_ANNOTATE
+        else:
+            raise TypeError(f"Unsupported schema type: {schema}!")
+        return "err"
 
     @staticmethod
     def _get_user_instruction(
@@ -673,6 +694,7 @@ class _AnthropicModel:
     @staticmethod
     def _get_anthropic_response(
         client: Optional[Anthropic],
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
         config: JudgeConfig,
         src: str,
         mt: str,
@@ -682,7 +704,7 @@ class _AnthropicModel:
     ) -> JudgeModelResult | None:
         if client is None:
             return None
-        system_instruction: str = _AnthropicModel._get_system_instruction()
+        system_instruction: str = _AnthropicModel._get_system_instruction(schema)
         user_instruction: str = _AnthropicModel._get_user_instruction(
             src=src, mt=mt, src_lang=src_lang, mt_lang=mt_lang
         )
@@ -699,7 +721,7 @@ class _AnthropicModel:
                 ],
                 # https://platform.claude.com/docs/en/build-with-claude/effort
                 output_config={"effort": config.anthropic_thinking_level},
-                output_format=QualityEstimation,
+                output_format=schema,
                 max_tokens=config.max_output_tokens,
             )
         except Exception as e:
@@ -710,6 +732,7 @@ class _AnthropicModel:
                 time.sleep(config.retry_wait_time)
                 return _AnthropicModel._get_anthropic_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -734,6 +757,7 @@ class _AnthropicModel:
             if retry < config.max_retry:
                 return _AnthropicModel._get_anthropic_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -758,6 +782,7 @@ class _AnthropicModel:
             if retry < config.max_retry:
                 return _AnthropicModel._get_anthropic_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -796,6 +821,7 @@ class _AnthropicModel:
             if retry < config.max_retry:
                 return _AnthropicModel._get_anthropic_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -859,18 +885,32 @@ class _GoogleModel:
         return "err"
 
     @staticmethod
+    def _get_system_instruction(
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
+    ) -> str:
+        if schema is QualityEstimation:
+            return SYSTEM_INSTRUCTION_SCORE
+        elif schema is QualityEstimationAnnotated:
+            return SYSTEM_INSTRUCTION_ANNOTATE
+        else:
+            raise TypeError(f"Unsupported schema type: {schema}!")
+        return "err"
+
+    @staticmethod
     def _generate_prompt(
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
         src: str,
         mt: str,
         src_lang: str,
         mt_lang: str,
     ) -> str:
-        base = SYSTEM_INSTRUCTION
+        base = _GoogleModel._get_system_instruction(schema)
         return f"{base}{src_lang} source: ```{src}```\n{mt_lang} machine translation: ```{mt}```"
 
     @staticmethod
     def _get_gemini_response(
         client: Optional[Google],
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
         config: JudgeConfig,
         src: str,
         mt: str,
@@ -881,7 +921,7 @@ class _GoogleModel:
         if client is None:
             return None
         prompt: str = _GoogleModel._generate_prompt(
-            src=src, mt=mt, src_lang=src_lang, mt_lang=mt_lang
+            schema=schema, src=src, mt=mt, src_lang=src_lang, mt_lang=mt_lang
         )
         response = None
         try:
@@ -896,7 +936,7 @@ class _GoogleModel:
                     ),
                     # might be worth checking out: https://ai.google.dev/gemini-api/docs/gemini-3?hl=de#structured_outputs_with_tools
                     response_mime_type="application/json",
-                    response_json_schema=QualityEstimation.model_json_schema(),
+                    response_json_schema=schema.model_json_schema(),
                     max_output_tokens=config.max_output_tokens,
                     seed=config.seeds[retry],
                 ),
@@ -909,6 +949,7 @@ class _GoogleModel:
                 time.sleep(config.retry_wait_time)
                 return _GoogleModel._get_gemini_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -934,6 +975,7 @@ class _GoogleModel:
                 time.sleep(config.retry_wait_time)
                 return _GoogleModel._get_gemini_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -959,6 +1001,7 @@ class _GoogleModel:
                 time.sleep(config.retry_wait_time)
                 return _GoogleModel._get_gemini_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -980,7 +1023,7 @@ class _GoogleModel:
             )
 
         try:
-            qe = QualityEstimation.model_validate_json(response.text)
+            qe = schema.model_validate_json(response.text)
             r = json.loads(response.text)
             logger.info(
                 f"Successfully got a valid response after retry {retry} for one query."
@@ -999,6 +1042,7 @@ class _GoogleModel:
                 if retry < config.max_retry:
                     return _GoogleModel._get_gemini_response(
                         client,
+                        schema=schema,
                         config=config,
                         src=src,
                         mt=mt,
@@ -1023,6 +1067,7 @@ class _GoogleModel:
                 if retry < config.max_retry:
                     return _GoogleModel._get_gemini_response(
                         client,
+                        schema=schema,
                         config=config,
                         src=src,
                         mt=mt,
@@ -1058,8 +1103,16 @@ class _GoogleModel:
 
 class _OllamaModel:
     @staticmethod
-    def _get_system_instruction() -> str:
-        return SYSTEM_INSTRUCTION
+    def _get_system_instruction(
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
+    ) -> str:
+        if schema is QualityEstimation:
+            return SYSTEM_INSTRUCTION_SCORE
+        elif schema is QualityEstimationAnnotated:
+            return SYSTEM_INSTRUCTION_ANNOTATE
+        else:
+            raise TypeError(f"Unsupported schema type: {schema}!")
+        return "err"
 
     @staticmethod
     def _get_user_instruction(
@@ -1075,13 +1128,14 @@ class _OllamaModel:
 
     @staticmethod
     def _generate_prompt(
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
         src: str,
         mt: str,
         src_lang: str,
         mt_lang: str,
     ) -> str:
         # slightly adopted prompt from the MetricX 25 paper
-        base = SYSTEM_INSTRUCTION
+        base = _OllamaModel._get_system_instruction(schema)
         return f"{base}{src_lang} source: ```{src}```\n{mt_lang} machine translation: ```{mt}```"
 
     # this is using the chat API which is the recommended way for structured outputs
@@ -1089,6 +1143,7 @@ class _OllamaModel:
     @staticmethod
     def _get_ollama_response(
         client: Optional[Ollama],
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
         config: JudgeConfig,
         src: str,
         mt: str,
@@ -1099,7 +1154,7 @@ class _OllamaModel:
         if client is None:
             return None
         response: OllamaChatResponse | None = None
-        system_instruction: str = _OllamaModel._get_system_instruction()
+        system_instruction: str = _OllamaModel._get_system_instruction(schema)
         user_instruction: str = _OllamaModel._get_user_instruction(
             src=src, mt=mt, src_lang=src_lang, mt_lang=mt_lang
         )
@@ -1111,7 +1166,7 @@ class _OllamaModel:
                     {"role": "system", "content": system_instruction},
                     {"role": "user", "content": user_instruction},
                 ],
-                format=QualityEstimation.model_json_schema(),
+                format=schema.model_json_schema(),
                 keep_alive=config.ollama_keep_alive,
                 options={
                     "num_predict": config.max_output_tokens,
@@ -1127,6 +1182,7 @@ class _OllamaModel:
             if retry < config.max_retry:
                 return _OllamaModel._get_ollama_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1137,6 +1193,7 @@ class _OllamaModel:
             # use fallback to generate API
             return _OllamaModel._get_ollama_response_fallback(
                 client,
+                schema=schema,
                 config=config,
                 src=src,
                 mt=mt,
@@ -1150,6 +1207,7 @@ class _OllamaModel:
             if retry < config.max_retry:
                 return _OllamaModel._get_ollama_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1160,6 +1218,7 @@ class _OllamaModel:
             # use fallback to generate API
             return _OllamaModel._get_ollama_response_fallback(
                 client,
+                schema=schema,
                 config=config,
                 src=src,
                 mt=mt,
@@ -1171,6 +1230,7 @@ class _OllamaModel:
             if retry < config.max_retry:
                 return _OllamaModel._get_ollama_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1181,6 +1241,7 @@ class _OllamaModel:
             # use fallback to generate API
             return _OllamaModel._get_ollama_response_fallback(
                 client,
+                schema=schema,
                 config=config,
                 src=src,
                 mt=mt,
@@ -1192,6 +1253,7 @@ class _OllamaModel:
             if retry < config.max_retry:
                 return _OllamaModel._get_ollama_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1202,6 +1264,7 @@ class _OllamaModel:
             # use fallback to generate API
             return _OllamaModel._get_ollama_response_fallback(
                 client,
+                schema=schema,
                 config=config,
                 src=src,
                 mt=mt,
@@ -1210,7 +1273,7 @@ class _OllamaModel:
             )
 
         try:
-            qe = QualityEstimation.model_validate_json(response.message.content)
+            qe = schema.model_validate_json(response.message.content)
             r = json.loads(response.message.content)
             logger.info(
                 f"Successfully got a valid response after retry {retry} for one query."
@@ -1232,6 +1295,7 @@ class _OllamaModel:
             if retry < config.max_retry:
                 return _OllamaModel._get_ollama_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1242,6 +1306,7 @@ class _OllamaModel:
             # use fallback to generate API
             return _OllamaModel._get_ollama_response_fallback(
                 client,
+                schema=schema,
                 config=config,
                 src=src,
                 mt=mt,
@@ -1251,6 +1316,7 @@ class _OllamaModel:
         # use fallback to generate API
         return _OllamaModel._get_ollama_response_fallback(
             client,
+            schema=schema,
             config=config,
             src=src,
             mt=mt,
@@ -1261,6 +1327,7 @@ class _OllamaModel:
     @staticmethod
     def _get_ollama_response_fallback(
         client: Optional[Ollama],
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
         config: JudgeConfig,
         src: str,
         mt: str,
@@ -1272,13 +1339,13 @@ class _OllamaModel:
             return None
         response: OllamaGenerateResponse | None = None
         prompt: str = _OllamaModel._generate_prompt(
-            src=src, mt=mt, src_lang=src_lang, mt_lang=mt_lang
+            schema=schema, src=src, mt=mt, src_lang=src_lang, mt_lang=mt_lang
         )
         try:
             response = client.generate(
                 model=config.ollama_model,
                 prompt=prompt,
-                format=QualityEstimation.model_json_schema(),
+                format=schema.model_json_schema(),
                 keep_alive=config.ollama_keep_alive,
                 options={
                     "num_predict": config.max_output_tokens,
@@ -1294,6 +1361,7 @@ class _OllamaModel:
             if retry < config.max_retry:
                 return _OllamaModel._get_ollama_response_fallback(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1308,6 +1376,7 @@ class _OllamaModel:
             if retry < config.max_retry:
                 return _OllamaModel._get_ollama_response_fallback(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1336,6 +1405,7 @@ class _OllamaModel:
             if retry < config.max_retry:
                 return _OllamaModel._get_ollama_response_fallback(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1361,7 +1431,7 @@ class _OllamaModel:
             )
 
         try:
-            qe = QualityEstimation.model_validate_json(response.response)
+            qe = schema.model_validate_json(response.response)
             r = json.loads(response.response)
             logger.info(
                 f"Successfully got a valid response after retry {retry} for one query."
@@ -1384,6 +1454,7 @@ class _OllamaModel:
                 if retry < config.max_retry:
                     return _OllamaModel._get_ollama_response_fallback(
                         client,
+                        schema=schema,
                         config=config,
                         src=src,
                         mt=mt,
@@ -1412,6 +1483,7 @@ class _OllamaModel:
                 if retry < config.max_retry:
                     return _OllamaModel._get_ollama_response_fallback(
                         client,
+                        schema=schema,
                         config=config,
                         src=src,
                         mt=mt,
@@ -1655,7 +1727,13 @@ class Judge:
         self.close()
 
     def score(self, src: str, mt: str, src_lang: str, mt_lang: str) -> JudgeResult:
-        r"""Performs quality estimation using all setup LLMs for one translation.
+        r"""Performs quality estimation without annotation.
+
+        Performs quality estimation without error annotation using all setup LLMs
+        for one translation. This means that LLMs will only return a quality estimation
+        score but no annotation of how that score was reasoned. The type of
+        ``JudgeModelResult.quality_estimation`` for each applied LLM will always
+        be ``QualityEstimation`` - if a successful reponse was received.
 
         Parameters
         ----------
@@ -1706,6 +1784,8 @@ class Judge:
         'mistral:7b'
         >>> jr.ollama.score
         0.95
+        >>> type(jr.ollama.quality_estimation)
+        <class 'llm_judge._translation.QualityEstimation'>
         >>> judge.close()
 
         >>> from llm_judge import Judge
@@ -1738,6 +1818,8 @@ class Judge:
         'qwen3.8:27b'
         >>> jr.ollama.score
         1.0
+        >>> type(jr.ollama.quality_estimation)
+        <class 'llm_judge._translation.QualityEstimation'>
         >>> judge.close()
         """
         if self.closed:
@@ -1747,6 +1829,7 @@ class Judge:
         return JudgeResult(
             openai=_OpenAIModel._get_openai_response(
                 client=self.__openai,
+                schema=QualityEstimation,
                 config=self.config,
                 src=src,
                 mt=mt,
@@ -1755,6 +1838,7 @@ class Judge:
             ),
             anthropic=_AnthropicModel._get_anthropic_response(
                 client=self.__anthropic,
+                schema=QualityEstimation,
                 config=self.config,
                 src=src,
                 mt=mt,
@@ -1763,6 +1847,7 @@ class Judge:
             ),
             google=_GoogleModel._get_gemini_response(
                 client=self.__google,
+                schema=QualityEstimation,
                 config=self.config,
                 src=src,
                 mt=mt,
@@ -1771,6 +1856,7 @@ class Judge:
             ),
             ollama=_OllamaModel._get_ollama_response(
                 client=self.__ollama,
+                schema=QualityEstimation,
                 config=self.config,
                 src=src,
                 mt=mt,

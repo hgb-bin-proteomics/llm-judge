@@ -75,3 +75,9 @@ and 1 would be a perfect translation.
 Make sure your response is a strict and valid json object that could be parsed with
 json.loads() in python.
 """
+
+# System prompt for LLMs (scoring), slightly adopted prompt from the MetricX 25 paper
+SYSTEM_INSTRUCTION_SCORE = SYSTEM_INSTRUCTION
+
+# System prompt for LLMs (annotation), slightly adopted prompt from the MetricX 25 paper
+SYSTEM_INSTRUCTION_ANNOTATE = SYSTEM_INSTRUCTION
