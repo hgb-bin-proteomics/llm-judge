@@ -8,15 +8,18 @@ r"""Performs quality estimation for a list of translations using LLMs from OpenA
 .. code-block:: text
    :caption: Usage Options
 
-    usage: llm-judge [-h] -i INPUT -o OUTPUT [-c CONFIG] [--openai] [--anthropic] [--google] [--ollama] [--ollama-model OLLAMA_MODEL] [--version]
+    usage: llm-judge [-h] -i INPUT -o OUTPUT [-c CONFIG] [-s] [--openai] [--anthropic] [--google]
+                 [--ollama] [--ollama-model OLLAMA_MODEL] [--version]
 
     Quality estimation for a list of translations using LLMs.
 
     options:
       -h, --help            show this help message and exit
-      -i, --input INPUT     path/name of the translations '.csv' file containing the columns 'src', 'mt', 'src_lang', and 'mt_lang' (str).
+      -i, --input INPUT     path/name of the translations '.csv' file containing the columns 'src', 'mt',
+                            'src_lang', and 'mt_lang' (str).
       -o, --output OUTPUT   path/name of the ouput file that should be written to disk (str).
       -c, --config CONFIG   path/name of the configuration file in TOML format (str).
+      -s, --score-only      only calculate quality estimation scores without error annotation.
       --openai              use OpenAI model.
       --anthropic           use Anthropic model.
       --google              use Google model.
