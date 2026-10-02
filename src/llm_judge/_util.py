@@ -32,8 +32,8 @@ def annotate_csv(
     judge : Judge
         The judge to be used for quality estimation.
     score_only : bool, default = False
-        If ``True`` translations will only be scored without error annotation. If ``True`` the function ``Judge.score()``
-        is called, otherwise (default) ``Judge.score_and_annotate()`` is called.
+        If ``True`` translations will only be scored without error annotation. Internally, if ``True`` the function
+        ``Judge.score()`` is called, otherwise (default) ``Judge.score_and_annotate()`` is called.
     output_file : str, or None, default = None
         Path/name of the ouput file that should be written to disk. If ``None`` nothing is written to disk.
 

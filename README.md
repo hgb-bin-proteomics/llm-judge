@@ -59,7 +59,7 @@ integration into production environments.
   mt_lang = "German"
   jr = judge.score(src, mt, src_lang, mt_lang)
   ```
-- _or_ rate one translation with error annotations:
+- _or_ rate one translation with error annotation:
   ```python
   src = "The mitochondria is the powerhouse of the cell."
   mt = "Das Mitochondrium ist das Kraftwerk der Zelle."
