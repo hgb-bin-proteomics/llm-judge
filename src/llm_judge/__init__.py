@@ -155,6 +155,7 @@ __all__ = [
     "TranslationErrorOther",
     "TranslationErrorNoerror",
     "QualityEstimation",
+    "QualityEstimationAnnotated",
     "annotate_csv",
 ]
 __version__ = "0.2.0"
@@ -172,5 +173,6 @@ from ._translation import (
     TranslationErrorOther,
     TranslationErrorNoerror,
     QualityEstimation,
+    QualityEstimationAnnotated,
 )
 from ._util import annotate_csv
