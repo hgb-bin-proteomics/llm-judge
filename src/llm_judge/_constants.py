@@ -30,10 +30,13 @@ GOOGLE_THINKING_LEVEL = "low"
 
 # Where Ollama is hosted
 OLLAMA_HOST = "http://localhost:11434"
+# The default Ollama model to use
 # Ollama models: https://ollama.com/search
-# the default Ollama model to use
 OLLAMA_DEFAULT_MODEL = "gemma4:e4b"
-# model in-memory duration
+# Maximum number of tokens a model has access to in memory
+# see https://docs.ollama.com/context-length
+OLLAMA_CONTEXT_LENGTH = 4096
+# Model in-memory duration
 # see https://docs.ollama.com/faq#how-do-i-keep-a-model-loaded-in-memory-or-make-it-unload-immediately
 # -1 seems to be safer, see https://github.com/ollama/ollama/issues/7645
 # KEEP_ALIVE = "5m"

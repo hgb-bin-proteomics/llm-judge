@@ -26,6 +26,7 @@ def test2():
     assert jc.google_thinking_level == "medium"
     assert jc.ollama_host == "http://localhost:11434"
     assert jc.ollama_model == "qwen3.8:27b"
+    assert jc.ollama_context_length == 32000
     assert jc.ollama_keep_alive == "5m"
     assert jc.max_output_tokens == 4096
     assert jc.max_retry == 2

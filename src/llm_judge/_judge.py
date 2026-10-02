@@ -30,7 +30,12 @@ from ._constants import MAX_RETRY, MAX_OUTPUT_TOKENS, RETRY_WAIT_TIME, SEEDS
 from ._constants import OPENAI_MODEL, OPENAI_THINKING_LEVEL
 from ._constants import ANTHROPIC_MODEL, ANTHROPIC_THINKING_LEVEL
 from ._constants import GOOGLE_MODEL, GOOGLE_THINKING_LEVEL
-from ._constants import OLLAMA_HOST, OLLAMA_DEFAULT_MODEL, OLLAMA_KEEP_ALIVE
+from ._constants import (
+    OLLAMA_HOST,
+    OLLAMA_DEFAULT_MODEL,
+    OLLAMA_CONTEXT_LENGTH,
+    OLLAMA_KEEP_ALIVE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +228,17 @@ class JudgeConfig(BaseModel):
     r"""The Ollama model to use, given as a valid model identifier. See
         `here <https://ollama.com/search>`_.
     """
+    ollama_context_length: Annotated[
+        int,
+        Field(
+            ge=1,
+            frozen=True,
+            description="Maximum number of tokens a model has access to in memory",
+        ),
+    ] = OLLAMA_CONTEXT_LENGTH
+    r"""Maximum number of tokens a model has access to in memory. See
+        `here <https://docs.ollama.com/context-length>`_.
+    """
     ollama_keep_alive: Annotated[
         int | str,
         Field(frozen=True, description="The Ollama model in-memory duration."),
@@ -230,17 +246,22 @@ class JudgeConfig(BaseModel):
     r"""The Ollama model in-memory duration."""
     max_output_tokens: Annotated[
         int,
-        Field(frozen=True, description="Maximum number of output tokens to generate."),
+        Field(
+            ge=1,
+            frozen=True,
+            description="Maximum number of output tokens to generate.",
+        ),
     ] = MAX_OUTPUT_TOKENS
     r"""Maximum number of output tokens to generate."""
     max_retry: Annotated[
         int,
-        Field(frozen=True, description="The maximum number of request retries."),
+        Field(ge=0, frozen=True, description="The maximum number of request retries."),
     ] = MAX_RETRY
     r"""The maximum number of request retries for failed API calls."""
     retry_wait_time: Annotated[
         float,
         Field(
+            ge=0.0,
             frozen=True,
             description="Time in seconds to wait between failed API requests.",
         ),
@@ -319,6 +340,7 @@ class JudgeConfig(BaseModel):
         google_thinking_level = GOOGLE_THINKING_LEVEL
         ollama_host = OLLAMA_HOST
         ollama_model = OLLAMA_DEFAULT_MODEL
+        ollama_context_length = OLLAMA_CONTEXT_LENGTH
         ollama_keep_alive = OLLAMA_KEEP_ALIVE
         max_output_tokens = MAX_OUTPUT_TOKENS
         max_retry = MAX_RETRY
@@ -344,6 +366,8 @@ class JudgeConfig(BaseModel):
                 ollama_host = parsed_toml["OLLAMA"]["ollama_host"]
             if "ollama_model" in parsed_toml["OLLAMA"]:
                 ollama_model = parsed_toml["OLLAMA"]["ollama_model"]
+            if "ollama_context_length" in parsed_toml["OLLAMA"]:
+                ollama_context_length = parsed_toml["OLLAMA"]["ollama_context_length"]
             if "ollama_keep_alive" in parsed_toml["OLLAMA"]:
                 ollama_keep_alive = parsed_toml["OLLAMA"]["ollama_keep_alive"]
         if "GENERAL" in parsed_toml:
@@ -364,6 +388,7 @@ class JudgeConfig(BaseModel):
             google_thinking_level=google_thinking_level,
             ollama_host=ollama_host,
             ollama_model=ollama_model,
+            ollama_context_length=ollama_context_length,
             ollama_keep_alive=ollama_keep_alive,
             max_output_tokens=max_output_tokens,
             max_retry=max_retry,
@@ -383,6 +408,7 @@ class JudgeConfig(BaseModel):
             f"Google Thinking Level:      {self.google_thinking_level}\n"
             f"Ollama Host:                {self.ollama_host}\n"
             f"Ollama Model:               {self.ollama_model}\n"
+            f"Ollama Context Length:      {self.ollama_context_length}\n"
             f"Ollama Keep Alive Duration: {self.ollama_keep_alive}\n"
             f"Maximum Output Tokens:      {self.max_output_tokens}\n"
             f"Maximum Retries:            {self.max_retry}\n"
