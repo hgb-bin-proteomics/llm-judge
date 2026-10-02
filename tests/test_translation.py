@@ -54,9 +54,9 @@ def test3():
 
 
 def test4():
-    from llm_judge import QualityEstimation
+    from llm_judge import QualityEstimationAnnotated
 
-    qe = QualityEstimation(
+    qe = QualityEstimationAnnotated(
         source="source",
         machine_translation="machine_translation",
         quality_estimation_value=0.0,
@@ -66,9 +66,9 @@ def test4():
 
 
 def test5():
-    from llm_judge import QualityEstimation
+    from llm_judge import QualityEstimationAnnotated
 
-    qe = QualityEstimation(
+    qe = QualityEstimationAnnotated(
         source="source",
         machine_translation="machine_translation",
         quality_estimation_value=1.0,
@@ -78,7 +78,11 @@ def test5():
 
 
 def test6():
-    from llm_judge import QualityEstimation, TranslationError, TranslationErrorAccuracy
+    from llm_judge import (
+        QualityEstimationAnnotated,
+        TranslationError,
+        TranslationErrorAccuracy,
+    )
 
     te = TranslationErrorAccuracy(
         error_type="accuracy",
@@ -89,7 +93,7 @@ def test6():
         description="description",
         location="location",
     )
-    qe = QualityEstimation(
+    qe = QualityEstimationAnnotated(
         source="source",
         machine_translation="machine_translation",
         quality_estimation_value=0.8,
@@ -100,11 +104,11 @@ def test6():
 
 
 def test7():
-    from llm_judge import QualityEstimation
+    from llm_judge import QualityEstimationAnnotated
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
-        _ = QualityEstimation(
+        _ = QualityEstimationAnnotated(
             source="source",
             machine_translation="machine_translation",
             quality_estimation_value=float("nan"),
