@@ -9,7 +9,7 @@ r"""Performs quality estimation for a list of translations using LLMs from OpenA
    :caption: Usage Options
 
     usage: llm-judge [-h] -i INPUT -o OUTPUT [-c CONFIG] [-s] [--openai] [--anthropic] [--google]
-                 [--ollama] [--ollama-model OLLAMA_MODEL] [--version]
+                     [--ollama] [--ollama-model OLLAMA_MODEL] [--version]
 
     Quality estimation for a list of translations using LLMs.
 
