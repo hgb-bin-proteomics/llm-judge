@@ -14,8 +14,8 @@ sys.path.insert(0, os.path.abspath("../src/"))
 project = "LLM Judge"
 copyright = "2026, Bioinformatics Research Group, FH OÖ Campus Hagenberg"
 author = "Micha Johannes Birklbauer"
-version = "0.1"
-release = "0.1.0"
+version = "0.3"
+release = "0.3.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

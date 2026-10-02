@@ -8,15 +8,18 @@ r"""Performs quality estimation for a list of translations using LLMs from OpenA
 .. code-block:: text
    :caption: Usage Options
 
-    usage: llm-judge [-h] -i INPUT -o OUTPUT [-c CONFIG] [--openai] [--anthropic] [--google] [--ollama] [--ollama-model OLLAMA_MODEL] [--version]
+    usage: llm-judge [-h] -i INPUT -o OUTPUT [-c CONFIG] [-s] [--openai] [--anthropic] [--google]
+                     [--ollama] [--ollama-model OLLAMA_MODEL] [--version]
 
     Quality estimation for a list of translations using LLMs.
 
     options:
       -h, --help            show this help message and exit
-      -i, --input INPUT     path/name of the translations '.csv' file containing the columns 'src', 'mt', 'src_lang', and 'mt_lang' (str).
+      -i, --input INPUT     path/name of the translations '.csv' file containing the columns 'src', 'mt',
+                            'src_lang', and 'mt_lang' (str).
       -o, --output OUTPUT   path/name of the ouput file that should be written to disk (str).
       -c, --config CONFIG   path/name of the configuration file in TOML format (str).
+      -s, --score-only      only calculate quality estimation scores without error annotation.
       --openai              use OpenAI model.
       --anthropic           use Anthropic model.
       --google              use Google model.
@@ -50,6 +53,7 @@ r"""Performs quality estimation for a list of translations using LLMs from OpenA
     Google Thinking Level:      low
     Ollama Host:                http://localhost:11434
     Ollama Model:               gemma4:e4b
+    Ollama Context Length:      4096
     Ollama Keep Alive Duration: -1
     Maximum Output Tokens:      2048
     Maximum Retries:            5
@@ -59,23 +63,27 @@ r"""Performs quality estimation for a list of translations using LLMs from OpenA
     INFO:llm_judge._main:Selected Ollama model: gemma4:e4b
     INFO:llm_judge._util:Reading file data/test.csv...
     INFO:llm_judge._util:Successfully read file data/test.csv!
-    Annotating data/test.csv...:   0%|                                                                                     | 0/1 [00:00<?, ?it/s]
+    Annotating data/test.csv...:   0%|                                               | 0/1 [00:00<?, ?it/s]
     INFO:httpx:HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 200 OK"
     INFO:llm_judge._judge:Successfully got a valid response after retry 0 for one query.
-    Annotating data/test.csv...: 100%|█████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:16<00:00, 16.74s/it]
+    Annotating data/test.csv...: 100%|███████████████████████████████████████| 1/1 [00:12<00:00, 12.23s/it]
     INFO:llm_judge._util:Finished annotation of data/test.csv!
     INFO:llm_judge._util:Writing files to disk...
     INFO:llm_judge._util:Successfully wrote file data/test_annotated.csv!
     INFO:llm_judge._util:Successfully wrote file data/test_annotated.csv.json!
     shape: (1, 8)
-    ┌──────────────────────────────────┬──────────────────┬──────────┬─────────┬──────────────┬─────────────────┬──────────────┬─────────────────────────┐
-    │ src                              ┆ mt               ┆ src_lang ┆ mt_lang ┆ score_openai ┆ score_anthropic ┆ score_google ┆ score_ollama_gemma4:e4b │
-    │ ---                              ┆ ---              ┆ ---      ┆ ---     ┆ ---          ┆ ---             ┆ ---          ┆ ---                     │
-    │ str                              ┆ str              ┆ str      ┆ str     ┆ f64          ┆ f64             ┆ f64          ┆ f64                     │
-    ╞══════════════════════════════════╪══════════════════╪══════════╪═════════╪══════════════╪═════════════════╪══════════════╪═════════════════════════╡
-    │ The lights are dimmable, but I…  ┆ Die Lichter sind ┆ English  ┆ German  ┆ NaN          ┆ NaN             ┆ NaN          ┆ 1.0                     │
-    │                                  ┆ dimmbar, aber…   ┆          ┆         ┆              ┆                 ┆              ┆                         │
-    └──────────────────────────────────┴──────────────────┴──────────┴─────────┴──────────────┴─────────────────┴──────────────┴─────────────────────────┘
+    ┌─────────────┬─────────────┬──────────┬─────────┬─────────────┬─────────────┬────────────┬────────────┐
+    │ src         ┆ mt          ┆ src_lang ┆ mt_lang ┆ score_opena ┆ score_anthr ┆ score_goog ┆ score_olla │
+    │ ---         ┆ ---         ┆ ---      ┆ ---     ┆ i           ┆ opic        ┆ le         ┆ ma_gemma4: │
+    │ str         ┆ str         ┆ str      ┆ str     ┆ ---         ┆ ---         ┆ ---        ┆ e4b        │
+    │             ┆             ┆          ┆         ┆ f64         ┆ f64         ┆ f64        ┆ ---        │
+    │             ┆             ┆          ┆         ┆             ┆             ┆            ┆ f64        │
+    ╞═════════════╪═════════════╪══════════╪═════════╪═════════════╪═════════════╪════════════╪════════════╡
+    │ The lights  ┆ Die Lichter ┆ English  ┆ German  ┆ NaN         ┆ NaN         ┆ NaN        ┆ 0.95       │
+    │ are         ┆ sind        ┆          ┆         ┆             ┆             ┆            ┆            │
+    │ dimmable,   ┆ dimmbar,    ┆          ┆         ┆             ┆             ┆            ┆            │
+    │ but I…      ┆ aber…       ┆          ┆         ┆             ┆             ┆            ┆            │
+    └─────────────┴─────────────┴──────────┴─────────┴─────────────┴─────────────┴────────────┴────────────┘
     INFO:llm_judge._judge:Successfully closed all connections and clients for this instance!
     INFO:llm_judge._main:Successfully scored and annotated all translations!
 
@@ -155,9 +163,10 @@ __all__ = [
     "TranslationErrorOther",
     "TranslationErrorNoerror",
     "QualityEstimation",
+    "QualityEstimationAnnotated",
     "annotate_csv",
 ]
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __author__ = "Micha Johannes Birklbauer"
 
 from ._main import main
@@ -172,5 +181,6 @@ from ._translation import (
     TranslationErrorOther,
     TranslationErrorNoerror,
     QualityEstimation,
+    QualityEstimationAnnotated,
 )
 from ._util import annotate_csv

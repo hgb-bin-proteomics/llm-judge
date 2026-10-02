@@ -175,8 +175,6 @@ class TranslationErrorNoerror(TranslationError):
 
 
 class QualityEstimation(BaseModel):
-    source: str = Field(description="The source text.")
-    machine_translation: str = Field(description="The machine translation text.")
     quality_estimation_value: float = Field(
         ge=0.0,
         le=1.0,
@@ -185,6 +183,11 @@ class QualityEstimation(BaseModel):
             "where 0 is complete gibberish and 1 would be a perfect translation."
         ),
     )
+
+
+class QualityEstimationAnnotated(QualityEstimation):
+    source: str = Field(description="The source text.")
+    machine_translation: str = Field(description="The machine translation text.")
     errors: list[
         TranslationErrorAccuracy
         | TranslationErrorFluency

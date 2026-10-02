@@ -30,10 +30,13 @@ GOOGLE_THINKING_LEVEL = "low"
 
 # Where Ollama is hosted
 OLLAMA_HOST = "http://localhost:11434"
+# The default Ollama model to use
 # Ollama models: https://ollama.com/search
-# the default Ollama model to use
 OLLAMA_DEFAULT_MODEL = "gemma4:e4b"
-# model in-memory duration
+# Maximum number of tokens a model has access to in memory
+# see https://docs.ollama.com/context-length
+OLLAMA_CONTEXT_LENGTH = 4096
+# Model in-memory duration
 # see https://docs.ollama.com/faq#how-do-i-keep-a-model-loaded-in-memory-or-make-it-unload-immediately
 # -1 seems to be safer, see https://github.com/ollama/ollama/issues/7645
 # KEEP_ALIVE = "5m"
@@ -49,3 +52,32 @@ MAX_RETRY = 5
 RETRY_WAIT_TIME = 30.0
 # Random seeds - has to be of lenght MAX_RETRY + 1
 SEEDS = [1337, 10081995, 18041970, 1071966, 3082023, 24042025]
+
+########## PROMPTS ##########
+
+# System prompt for LLMs, slightly adopted prompt from the MetricX 25 paper
+SYSTEM_INSTRUCTION = """
+You are an annotator for the quality of machine translation. Your task is to
+identify errors and assess the quality of the translation.
+Based on the source segment, human-generated reference translation, and machine
+translation surrounded with triple backticks, identify error types in the
+translation and classify them. The categories of errors are: accuracy
+(addition, mistranslation, omission, untranslated text), fluency (character
+encoding, grammar, inconsistency, punctuation, register, spelling), style
+(awkward), terminology (inappropriate for context, inconsistent use),
+non-translation, other, or no-error.
+Each error is classified as one of three severities: critical, major, and minor.
+Critical errors inhibit comprehension of the text. Major errors disrupt the
+flow, but what the text is trying to say is still understandable. Minor errors
+are technically errors, but do not disrupt the flow or hinder comprehension.
+Give a quality estimation as a value between 0 and 1 where 0 is complete gibberish
+and 1 would be a perfect translation.
+Make sure your response is a strict and valid json object that could be parsed with
+json.loads() in python.
+"""
+
+# System prompt for LLMs (scoring), slightly adopted prompt from the MetricX 25 paper
+SYSTEM_INSTRUCTION_SCORE = SYSTEM_INSTRUCTION
+
+# System prompt for LLMs (annotation), slightly adopted prompt from the MetricX 25 paper
+SYSTEM_INSTRUCTION_ANNOTATE = SYSTEM_INSTRUCTION

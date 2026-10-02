@@ -24,12 +24,18 @@ from pydantic import BaseModel, Field, ConfigDict, computed_field
 from types import TracebackType
 from typing import Optional, Annotated, Any, Literal, override
 
-from ._translation import QualityEstimation
+from ._translation import QualityEstimation, QualityEstimationAnnotated
+from ._constants import SYSTEM_INSTRUCTION_SCORE, SYSTEM_INSTRUCTION_ANNOTATE
 from ._constants import MAX_RETRY, MAX_OUTPUT_TOKENS, RETRY_WAIT_TIME, SEEDS
 from ._constants import OPENAI_MODEL, OPENAI_THINKING_LEVEL
 from ._constants import ANTHROPIC_MODEL, ANTHROPIC_THINKING_LEVEL
 from ._constants import GOOGLE_MODEL, GOOGLE_THINKING_LEVEL
-from ._constants import OLLAMA_HOST, OLLAMA_DEFAULT_MODEL, OLLAMA_KEEP_ALIVE
+from ._constants import (
+    OLLAMA_HOST,
+    OLLAMA_DEFAULT_MODEL,
+    OLLAMA_CONTEXT_LENGTH,
+    OLLAMA_KEEP_ALIVE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +96,7 @@ class JudgeModelResult(BaseModel):
         Literal["ok", "error"],
         Field(frozen=True, description="Status of the response."),
     ]
-    r"""Status of the response. Can be 'ok' or 'error'. Only 'ok' denote a successful response."""
+    r"""Status of the response. Can be 'ok' or 'error'. Only 'ok' denotes a successful response."""
     parameters: Annotated[
         Optional[dict[str, str]],
         Field(frozen=True, description="Additional parameters passed to the LLM."),
@@ -101,7 +107,7 @@ class JudgeModelResult(BaseModel):
     ]
     r"""The LLM response as raw text."""
     quality_estimation: Annotated[
-        Optional[QualityEstimation],
+        Optional[QualityEstimation | QualityEstimationAnnotated],
         Field(frozen=True, description="The quality estimation returned by the LLM."),
     ]
     r"""The quality estimation returned by the LLM."""
@@ -222,6 +228,17 @@ class JudgeConfig(BaseModel):
     r"""The Ollama model to use, given as a valid model identifier. See
         `here <https://ollama.com/search>`_.
     """
+    ollama_context_length: Annotated[
+        int,
+        Field(
+            ge=1,
+            frozen=True,
+            description="Maximum number of tokens a model has access to in memory",
+        ),
+    ] = OLLAMA_CONTEXT_LENGTH
+    r"""Maximum number of tokens a model has access to in memory. See
+        `here <https://docs.ollama.com/context-length>`_.
+    """
     ollama_keep_alive: Annotated[
         int | str,
         Field(frozen=True, description="The Ollama model in-memory duration."),
@@ -229,17 +246,22 @@ class JudgeConfig(BaseModel):
     r"""The Ollama model in-memory duration."""
     max_output_tokens: Annotated[
         int,
-        Field(frozen=True, description="Maximum number of output tokens to generate."),
+        Field(
+            ge=1,
+            frozen=True,
+            description="Maximum number of output tokens to generate.",
+        ),
     ] = MAX_OUTPUT_TOKENS
     r"""Maximum number of output tokens to generate."""
     max_retry: Annotated[
         int,
-        Field(frozen=True, description="The maximum number of request retries."),
+        Field(ge=0, frozen=True, description="The maximum number of request retries."),
     ] = MAX_RETRY
     r"""The maximum number of request retries for failed API calls."""
     retry_wait_time: Annotated[
         float,
         Field(
+            ge=0.0,
             frozen=True,
             description="Time in seconds to wait between failed API requests.",
         ),
@@ -318,6 +340,7 @@ class JudgeConfig(BaseModel):
         google_thinking_level = GOOGLE_THINKING_LEVEL
         ollama_host = OLLAMA_HOST
         ollama_model = OLLAMA_DEFAULT_MODEL
+        ollama_context_length = OLLAMA_CONTEXT_LENGTH
         ollama_keep_alive = OLLAMA_KEEP_ALIVE
         max_output_tokens = MAX_OUTPUT_TOKENS
         max_retry = MAX_RETRY
@@ -343,6 +366,8 @@ class JudgeConfig(BaseModel):
                 ollama_host = parsed_toml["OLLAMA"]["ollama_host"]
             if "ollama_model" in parsed_toml["OLLAMA"]:
                 ollama_model = parsed_toml["OLLAMA"]["ollama_model"]
+            if "ollama_context_length" in parsed_toml["OLLAMA"]:
+                ollama_context_length = parsed_toml["OLLAMA"]["ollama_context_length"]
             if "ollama_keep_alive" in parsed_toml["OLLAMA"]:
                 ollama_keep_alive = parsed_toml["OLLAMA"]["ollama_keep_alive"]
         if "GENERAL" in parsed_toml:
@@ -363,6 +388,7 @@ class JudgeConfig(BaseModel):
             google_thinking_level=google_thinking_level,
             ollama_host=ollama_host,
             ollama_model=ollama_model,
+            ollama_context_length=ollama_context_length,
             ollama_keep_alive=ollama_keep_alive,
             max_output_tokens=max_output_tokens,
             max_retry=max_retry,
@@ -382,6 +408,7 @@ class JudgeConfig(BaseModel):
             f"Google Thinking Level:      {self.google_thinking_level}\n"
             f"Ollama Host:                {self.ollama_host}\n"
             f"Ollama Model:               {self.ollama_model}\n"
+            f"Ollama Context Length:      {self.ollama_context_length}\n"
             f"Ollama Keep Alive Duration: {self.ollama_keep_alive}\n"
             f"Maximum Output Tokens:      {self.max_output_tokens}\n"
             f"Maximum Retries:            {self.max_retry}\n"
@@ -421,27 +448,16 @@ class _OpenAIModel:
         return "err"
 
     @staticmethod
-    def _get_system_instruction() -> str:
-        # slightly adopted prompt from the MetricX 25 paper
-        return """
-            You are an annotator for the quality of machine translation. Your task is to
-            identify errors and assess the quality of the translation.
-            Based on the source segment, human-generated reference translation, and machine
-            translation surrounded with triple backticks, identify error types in the
-            translation and classify them. The categories of errors are: accuracy
-            (addition, mistranslation, omission, untranslated text), fluency (character
-            encoding, grammar, inconsistency, punctuation, register, spelling), style
-            (awkward), terminology (inappropriate for context, inconsistent use),
-            non-translation, other, or no-error.
-            Each error is classified as one of three severities: critical, major, and minor.
-            Critical errors inhibit comprehension of the text. Major errors disrupt the
-            flow, but what the text is trying to say is still understandable. Minor errors
-            are technically errors, but do not disrupt the flow or hinder comprehension.
-            Give a quality estimation as a value between 0 and 1 where 0 is complete gibberish
-            and 1 would be a perfect translation.
-            Make sure your response is a strict and valid json object that could be parsed with
-            json.loads() in python.
-            """
+    def _get_system_instruction(
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
+    ) -> str:
+        if schema is QualityEstimation:
+            return SYSTEM_INSTRUCTION_SCORE
+        elif schema is QualityEstimationAnnotated:
+            return SYSTEM_INSTRUCTION_ANNOTATE
+        else:
+            raise TypeError(f"Unsupported schema type: {schema}!")
+        return "err"
 
     @staticmethod
     def _get_user_instruction(
@@ -458,6 +474,7 @@ class _OpenAIModel:
     @staticmethod
     def _get_openai_response(
         client: Optional[OpenAI],
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
         config: JudgeConfig,
         src: str,
         mt: str,
@@ -467,7 +484,7 @@ class _OpenAIModel:
     ) -> JudgeModelResult | None:
         if client is None:
             return None
-        system_instruction: str = _OpenAIModel._get_system_instruction()
+        system_instruction: str = _OpenAIModel._get_system_instruction(schema)
         user_instruction: str = _OpenAIModel._get_user_instruction(
             src=src, mt=mt, src_lang=src_lang, mt_lang=mt_lang
         )
@@ -483,7 +500,7 @@ class _OpenAIModel:
                 ],
                 # # https://developers.openai.com/api/docs/guides/reasoning?api-mode=responses
                 reasoning={"effort": config.openai_thinking_level},
-                text_format=QualityEstimation,
+                text_format=schema,
                 max_output_tokens=config.max_output_tokens,
             )
         except Exception as e:
@@ -494,6 +511,7 @@ class _OpenAIModel:
                 time.sleep(config.retry_wait_time)
                 return _OpenAIModel._get_openai_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -518,6 +536,7 @@ class _OpenAIModel:
             if retry < config.max_retry:
                 return _OpenAIModel._get_openai_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -542,6 +561,7 @@ class _OpenAIModel:
             if retry < config.max_retry:
                 return _OpenAIModel._get_openai_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -580,6 +600,7 @@ class _OpenAIModel:
             if retry < config.max_retry:
                 return _OpenAIModel._get_openai_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -647,27 +668,16 @@ class _AnthropicModel:
         return "err"
 
     @staticmethod
-    def _get_system_instruction() -> str:
-        # slightly adopted prompt from the MetricX 25 paper
-        return """
-            You are an annotator for the quality of machine translation. Your task is to
-            identify errors and assess the quality of the translation.
-            Based on the source segment, human-generated reference translation, and machine
-            translation surrounded with triple backticks, identify error types in the
-            translation and classify them. The categories of errors are: accuracy
-            (addition, mistranslation, omission, untranslated text), fluency (character
-            encoding, grammar, inconsistency, punctuation, register, spelling), style
-            (awkward), terminology (inappropriate for context, inconsistent use),
-            non-translation, other, or no-error.
-            Each error is classified as one of three severities: critical, major, and minor.
-            Critical errors inhibit comprehension of the text. Major errors disrupt the
-            flow, but what the text is trying to say is still understandable. Minor errors
-            are technically errors, but do not disrupt the flow or hinder comprehension.
-            Give a quality estimation as a value between 0 and 1 where 0 is complete gibberish
-            and 1 would be a perfect translation.
-            Make sure your response is a strict and valid json object that could be parsed with
-            json.loads() in python.
-            """
+    def _get_system_instruction(
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
+    ) -> str:
+        if schema is QualityEstimation:
+            return SYSTEM_INSTRUCTION_SCORE
+        elif schema is QualityEstimationAnnotated:
+            return SYSTEM_INSTRUCTION_ANNOTATE
+        else:
+            raise TypeError(f"Unsupported schema type: {schema}!")
+        return "err"
 
     @staticmethod
     def _get_user_instruction(
@@ -684,6 +694,7 @@ class _AnthropicModel:
     @staticmethod
     def _get_anthropic_response(
         client: Optional[Anthropic],
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
         config: JudgeConfig,
         src: str,
         mt: str,
@@ -693,7 +704,7 @@ class _AnthropicModel:
     ) -> JudgeModelResult | None:
         if client is None:
             return None
-        system_instruction: str = _AnthropicModel._get_system_instruction()
+        system_instruction: str = _AnthropicModel._get_system_instruction(schema)
         user_instruction: str = _AnthropicModel._get_user_instruction(
             src=src, mt=mt, src_lang=src_lang, mt_lang=mt_lang
         )
@@ -710,7 +721,7 @@ class _AnthropicModel:
                 ],
                 # https://platform.claude.com/docs/en/build-with-claude/effort
                 output_config={"effort": config.anthropic_thinking_level},
-                output_format=QualityEstimation,
+                output_format=schema,
                 max_tokens=config.max_output_tokens,
             )
         except Exception as e:
@@ -721,6 +732,7 @@ class _AnthropicModel:
                 time.sleep(config.retry_wait_time)
                 return _AnthropicModel._get_anthropic_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -745,6 +757,7 @@ class _AnthropicModel:
             if retry < config.max_retry:
                 return _AnthropicModel._get_anthropic_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -769,6 +782,7 @@ class _AnthropicModel:
             if retry < config.max_retry:
                 return _AnthropicModel._get_anthropic_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -807,6 +821,7 @@ class _AnthropicModel:
             if retry < config.max_retry:
                 return _AnthropicModel._get_anthropic_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -870,37 +885,32 @@ class _GoogleModel:
         return "err"
 
     @staticmethod
+    def _get_system_instruction(
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
+    ) -> str:
+        if schema is QualityEstimation:
+            return SYSTEM_INSTRUCTION_SCORE
+        elif schema is QualityEstimationAnnotated:
+            return SYSTEM_INSTRUCTION_ANNOTATE
+        else:
+            raise TypeError(f"Unsupported schema type: {schema}!")
+        return "err"
+
+    @staticmethod
     def _generate_prompt(
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
         src: str,
         mt: str,
         src_lang: str,
         mt_lang: str,
     ) -> str:
-        # slightly adopted prompt from the MetricX 25 paper
-        base = """
-            You are an annotator for the quality of machine translation. Your task is to
-            identify errors and assess the quality of the translation.
-            Based on the source segment, human-generated reference translation, and machine
-            translation surrounded with triple backticks, identify error types in the
-            translation and classify them. The categories of errors are: accuracy
-            (addition, mistranslation, omission, untranslated text), fluency (character
-            encoding, grammar, inconsistency, punctuation, register, spelling), style
-            (awkward), terminology (inappropriate for context, inconsistent use),
-            non-translation, other, or no-error.
-            Each error is classified as one of three severities: critical, major, and minor.
-            Critical errors inhibit comprehension of the text. Major errors disrupt the
-            flow, but what the text is trying to say is still understandable. Minor errors
-            are technically errors, but do not disrupt the flow or hinder comprehension.
-            Give a quality estimation as a value between 0 and 1 where 0 is complete gibberish
-            and 1 would be a perfect translation.
-            Make sure your response is a strict and valid json object that could be parsed with
-            json.loads() in python.
-            """
+        base = _GoogleModel._get_system_instruction(schema)
         return f"{base}{src_lang} source: ```{src}```\n{mt_lang} machine translation: ```{mt}```"
 
     @staticmethod
     def _get_gemini_response(
         client: Optional[Google],
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
         config: JudgeConfig,
         src: str,
         mt: str,
@@ -911,7 +921,7 @@ class _GoogleModel:
         if client is None:
             return None
         prompt: str = _GoogleModel._generate_prompt(
-            src=src, mt=mt, src_lang=src_lang, mt_lang=mt_lang
+            schema=schema, src=src, mt=mt, src_lang=src_lang, mt_lang=mt_lang
         )
         response = None
         try:
@@ -926,7 +936,7 @@ class _GoogleModel:
                     ),
                     # might be worth checking out: https://ai.google.dev/gemini-api/docs/gemini-3?hl=de#structured_outputs_with_tools
                     response_mime_type="application/json",
-                    response_json_schema=QualityEstimation.model_json_schema(),
+                    response_json_schema=schema.model_json_schema(),
                     max_output_tokens=config.max_output_tokens,
                     seed=config.seeds[retry],
                 ),
@@ -939,6 +949,7 @@ class _GoogleModel:
                 time.sleep(config.retry_wait_time)
                 return _GoogleModel._get_gemini_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -964,6 +975,7 @@ class _GoogleModel:
                 time.sleep(config.retry_wait_time)
                 return _GoogleModel._get_gemini_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -989,6 +1001,7 @@ class _GoogleModel:
                 time.sleep(config.retry_wait_time)
                 return _GoogleModel._get_gemini_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1010,7 +1023,7 @@ class _GoogleModel:
             )
 
         try:
-            qe = QualityEstimation.model_validate_json(response.text)
+            qe = schema.model_validate_json(response.text)
             r = json.loads(response.text)
             logger.info(
                 f"Successfully got a valid response after retry {retry} for one query."
@@ -1029,6 +1042,7 @@ class _GoogleModel:
                 if retry < config.max_retry:
                     return _GoogleModel._get_gemini_response(
                         client,
+                        schema=schema,
                         config=config,
                         src=src,
                         mt=mt,
@@ -1053,6 +1067,7 @@ class _GoogleModel:
                 if retry < config.max_retry:
                     return _GoogleModel._get_gemini_response(
                         client,
+                        schema=schema,
                         config=config,
                         src=src,
                         mt=mt,
@@ -1088,27 +1103,16 @@ class _GoogleModel:
 
 class _OllamaModel:
     @staticmethod
-    def _get_system_instruction() -> str:
-        # slightly adopted prompt from the MetricX 25 paper
-        return """
-            You are an annotator for the quality of machine translation. Your task is to
-            identify errors and assess the quality of the translation.
-            Based on the source segment, human-generated reference translation, and machine
-            translation surrounded with triple backticks, identify error types in the
-            translation and classify them. The categories of errors are: accuracy
-            (addition, mistranslation, omission, untranslated text), fluency (character
-            encoding, grammar, inconsistency, punctuation, register, spelling), style
-            (awkward), terminology (inappropriate for context, inconsistent use),
-            non-translation, other, or no-error.
-            Each error is classified as one of three severities: critical, major, and minor.
-            Critical errors inhibit comprehension of the text. Major errors disrupt the
-            flow, but what the text is trying to say is still understandable. Minor errors
-            are technically errors, but do not disrupt the flow or hinder comprehension.
-            Give a quality estimation as a value between 0 and 1 where 0 is complete gibberish
-            and 1 would be a perfect translation.
-            Make sure your response is a strict and valid json object that could be parsed with
-            json.loads() in python.
-            """
+    def _get_system_instruction(
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
+    ) -> str:
+        if schema is QualityEstimation:
+            return SYSTEM_INSTRUCTION_SCORE
+        elif schema is QualityEstimationAnnotated:
+            return SYSTEM_INSTRUCTION_ANNOTATE
+        else:
+            raise TypeError(f"Unsupported schema type: {schema}!")
+        return "err"
 
     @staticmethod
     def _get_user_instruction(
@@ -1124,31 +1128,14 @@ class _OllamaModel:
 
     @staticmethod
     def _generate_prompt(
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
         src: str,
         mt: str,
         src_lang: str,
         mt_lang: str,
     ) -> str:
         # slightly adopted prompt from the MetricX 25 paper
-        base = """
-            You are an annotator for the quality of machine translation. Your task is to
-            identify errors and assess the quality of the translation.
-            Based on the source segment, human-generated reference translation, and machine
-            translation surrounded with triple backticks, identify error types in the
-            translation and classify them. The categories of errors are: accuracy
-            (addition, mistranslation, omission, untranslated text), fluency (character
-            encoding, grammar, inconsistency, punctuation, register, spelling), style
-            (awkward), terminology (inappropriate for context, inconsistent use),
-            non-translation, other, or no-error.
-            Each error is classified as one of three severities: critical, major, and minor.
-            Critical errors inhibit comprehension of the text. Major errors disrupt the
-            flow, but what the text is trying to say is still understandable. Minor errors
-            are technically errors, but do not disrupt the flow or hinder comprehension.
-            Give a quality estimation as a value between 0 and 1 where 0 is complete gibberish
-            and 1 would be a perfect translation.
-            Make sure your response is a strict and valid json object that could be parsed with
-            json.loads() in python.
-            """
+        base = _OllamaModel._get_system_instruction(schema)
         return f"{base}{src_lang} source: ```{src}```\n{mt_lang} machine translation: ```{mt}```"
 
     # this is using the chat API which is the recommended way for structured outputs
@@ -1156,6 +1143,7 @@ class _OllamaModel:
     @staticmethod
     def _get_ollama_response(
         client: Optional[Ollama],
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
         config: JudgeConfig,
         src: str,
         mt: str,
@@ -1166,7 +1154,7 @@ class _OllamaModel:
         if client is None:
             return None
         response: OllamaChatResponse | None = None
-        system_instruction: str = _OllamaModel._get_system_instruction()
+        system_instruction: str = _OllamaModel._get_system_instruction(schema)
         user_instruction: str = _OllamaModel._get_user_instruction(
             src=src, mt=mt, src_lang=src_lang, mt_lang=mt_lang
         )
@@ -1178,10 +1166,11 @@ class _OllamaModel:
                     {"role": "system", "content": system_instruction},
                     {"role": "user", "content": user_instruction},
                 ],
-                format=QualityEstimation.model_json_schema(),
+                format=schema.model_json_schema(),
                 keep_alive=config.ollama_keep_alive,
                 options={
                     "num_predict": config.max_output_tokens,
+                    "num_ctx": config.ollama_context_length,
                     "seed": config.seeds[retry],
                 },
             )
@@ -1193,6 +1182,7 @@ class _OllamaModel:
             if retry < config.max_retry:
                 return _OllamaModel._get_ollama_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1203,6 +1193,7 @@ class _OllamaModel:
             # use fallback to generate API
             return _OllamaModel._get_ollama_response_fallback(
                 client,
+                schema=schema,
                 config=config,
                 src=src,
                 mt=mt,
@@ -1216,6 +1207,7 @@ class _OllamaModel:
             if retry < config.max_retry:
                 return _OllamaModel._get_ollama_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1226,6 +1218,7 @@ class _OllamaModel:
             # use fallback to generate API
             return _OllamaModel._get_ollama_response_fallback(
                 client,
+                schema=schema,
                 config=config,
                 src=src,
                 mt=mt,
@@ -1237,6 +1230,7 @@ class _OllamaModel:
             if retry < config.max_retry:
                 return _OllamaModel._get_ollama_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1247,6 +1241,7 @@ class _OllamaModel:
             # use fallback to generate API
             return _OllamaModel._get_ollama_response_fallback(
                 client,
+                schema=schema,
                 config=config,
                 src=src,
                 mt=mt,
@@ -1258,6 +1253,7 @@ class _OllamaModel:
             if retry < config.max_retry:
                 return _OllamaModel._get_ollama_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1268,6 +1264,7 @@ class _OllamaModel:
             # use fallback to generate API
             return _OllamaModel._get_ollama_response_fallback(
                 client,
+                schema=schema,
                 config=config,
                 src=src,
                 mt=mt,
@@ -1276,7 +1273,7 @@ class _OllamaModel:
             )
 
         try:
-            qe = QualityEstimation.model_validate_json(response.message.content)
+            qe = schema.model_validate_json(response.message.content)
             r = json.loads(response.message.content)
             logger.info(
                 f"Successfully got a valid response after retry {retry} for one query."
@@ -1287,6 +1284,7 @@ class _OllamaModel:
                 status="ok",
                 parameters={
                     "num_predict": str(config.max_output_tokens),
+                    "num_ctx": str(config.ollama_context_length),
                     "seed": str(config.seeds[retry]),
                 },
                 response=str(response),
@@ -1297,6 +1295,7 @@ class _OllamaModel:
             if retry < config.max_retry:
                 return _OllamaModel._get_ollama_response(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1307,6 +1306,7 @@ class _OllamaModel:
             # use fallback to generate API
             return _OllamaModel._get_ollama_response_fallback(
                 client,
+                schema=schema,
                 config=config,
                 src=src,
                 mt=mt,
@@ -1316,6 +1316,7 @@ class _OllamaModel:
         # use fallback to generate API
         return _OllamaModel._get_ollama_response_fallback(
             client,
+            schema=schema,
             config=config,
             src=src,
             mt=mt,
@@ -1326,6 +1327,7 @@ class _OllamaModel:
     @staticmethod
     def _get_ollama_response_fallback(
         client: Optional[Ollama],
+        schema: type[QualityEstimation] | type[QualityEstimationAnnotated],
         config: JudgeConfig,
         src: str,
         mt: str,
@@ -1337,16 +1339,17 @@ class _OllamaModel:
             return None
         response: OllamaGenerateResponse | None = None
         prompt: str = _OllamaModel._generate_prompt(
-            src=src, mt=mt, src_lang=src_lang, mt_lang=mt_lang
+            schema=schema, src=src, mt=mt, src_lang=src_lang, mt_lang=mt_lang
         )
         try:
             response = client.generate(
                 model=config.ollama_model,
                 prompt=prompt,
-                format=QualityEstimation.model_json_schema(),
+                format=schema.model_json_schema(),
                 keep_alive=config.ollama_keep_alive,
                 options={
                     "num_predict": config.max_output_tokens,
+                    "num_ctx": config.ollama_context_length,
                     "seed": config.seeds[retry],
                 },
             )
@@ -1358,6 +1361,7 @@ class _OllamaModel:
             if retry < config.max_retry:
                 return _OllamaModel._get_ollama_response_fallback(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1372,6 +1376,7 @@ class _OllamaModel:
             if retry < config.max_retry:
                 return _OllamaModel._get_ollama_response_fallback(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1388,6 +1393,7 @@ class _OllamaModel:
                 status="error",
                 parameters={
                     "num_predict": str(config.max_output_tokens),
+                    "num_ctx": str(config.ollama_context_length),
                     "seed": str(config.seeds[retry]),
                 },
                 response=None,
@@ -1399,6 +1405,7 @@ class _OllamaModel:
             if retry < config.max_retry:
                 return _OllamaModel._get_ollama_response_fallback(
                     client,
+                    schema=schema,
                     config=config,
                     src=src,
                     mt=mt,
@@ -1415,6 +1422,7 @@ class _OllamaModel:
                 status="error",
                 parameters={
                     "num_predict": str(config.max_output_tokens),
+                    "num_ctx": str(config.ollama_context_length),
                     "seed": str(config.seeds[retry]),
                 },
                 response=str(response),
@@ -1423,7 +1431,7 @@ class _OllamaModel:
             )
 
         try:
-            qe = QualityEstimation.model_validate_json(response.response)
+            qe = schema.model_validate_json(response.response)
             r = json.loads(response.response)
             logger.info(
                 f"Successfully got a valid response after retry {retry} for one query."
@@ -1434,6 +1442,7 @@ class _OllamaModel:
                 status="ok",
                 parameters={
                     "num_predict": str(config.max_output_tokens),
+                    "num_ctx": str(config.ollama_context_length),
                     "seed": str(config.seeds[retry]),
                 },
                 response=str(response),
@@ -1445,6 +1454,7 @@ class _OllamaModel:
                 if retry < config.max_retry:
                     return _OllamaModel._get_ollama_response_fallback(
                         client,
+                        schema=schema,
                         config=config,
                         src=src,
                         mt=mt,
@@ -1462,6 +1472,7 @@ class _OllamaModel:
                     status="error",
                     parameters={
                         "num_predict": str(config.max_output_tokens),
+                        "num_ctx": str(config.ollama_context_length),
                         "seed": str(config.seeds[retry]),
                     },
                     response=str(response),
@@ -1472,6 +1483,7 @@ class _OllamaModel:
                 if retry < config.max_retry:
                     return _OllamaModel._get_ollama_response_fallback(
                         client,
+                        schema=schema,
                         config=config,
                         src=src,
                         mt=mt,
@@ -1488,6 +1500,7 @@ class _OllamaModel:
                     status="error",
                     parameters={
                         "num_predict": str(config.max_output_tokens),
+                        "num_ctx": str(config.ollama_context_length),
                         "seed": str(config.seeds[retry]),
                     },
                     response=str(response),
@@ -1503,6 +1516,7 @@ class _OllamaModel:
             status="error",
             parameters={
                 "num_predict": str(config.max_output_tokens),
+                "num_ctx": str(config.ollama_context_length),
                 "seed": str(config.seeds[retry]),
             },
             response=str(response) if response is not None else None,
@@ -1713,7 +1727,13 @@ class Judge:
         self.close()
 
     def score(self, src: str, mt: str, src_lang: str, mt_lang: str) -> JudgeResult:
-        r"""Performs quality estimation using all setup LLMs for one translation.
+        r"""Performs quality estimation without annotation.
+
+        Performs quality estimation without error annotation using all setup LLMs
+        for one translation. This means that LLMs will only return a quality estimation
+        score but no annotation of how that score was reasoned. The type of
+        ``JudgeModelResult.quality_estimation`` for each applied LLM will always
+        be ``QualityEstimation`` - if a successful reponse was received.
 
         Parameters
         ----------
@@ -1764,6 +1784,8 @@ class Judge:
         'mistral:7b'
         >>> jr.ollama.score
         0.95
+        >>> type(jr.ollama.quality_estimation)
+        <class 'llm_judge._translation.QualityEstimation'>
         >>> judge.close()
 
         >>> from llm_judge import Judge
@@ -1796,6 +1818,8 @@ class Judge:
         'qwen3.8:27b'
         >>> jr.ollama.score
         1.0
+        >>> type(jr.ollama.quality_estimation)
+        <class 'llm_judge._translation.QualityEstimation'>
         >>> judge.close()
         """
         if self.closed:
@@ -1805,6 +1829,7 @@ class Judge:
         return JudgeResult(
             openai=_OpenAIModel._get_openai_response(
                 client=self.__openai,
+                schema=QualityEstimation,
                 config=self.config,
                 src=src,
                 mt=mt,
@@ -1813,6 +1838,7 @@ class Judge:
             ),
             anthropic=_AnthropicModel._get_anthropic_response(
                 client=self.__anthropic,
+                schema=QualityEstimation,
                 config=self.config,
                 src=src,
                 mt=mt,
@@ -1821,6 +1847,7 @@ class Judge:
             ),
             google=_GoogleModel._get_gemini_response(
                 client=self.__google,
+                schema=QualityEstimation,
                 config=self.config,
                 src=src,
                 mt=mt,
@@ -1829,6 +1856,147 @@ class Judge:
             ),
             ollama=_OllamaModel._get_ollama_response(
                 client=self.__ollama,
+                schema=QualityEstimation,
+                config=self.config,
+                src=src,
+                mt=mt,
+                src_lang=src_lang,
+                mt_lang=mt_lang,
+            ),
+        )
+
+    def score_and_annotate(
+        self, src: str, mt: str, src_lang: str, mt_lang: str
+    ) -> JudgeResult:
+        r"""Performs quality estimation with annotation.
+
+        Performs quality estimation with error annotation using all setup LLMs
+        for one translation. The type of ``JudgeModelResult.quality_estimation``
+        for each applied LLM will always be ``QualityEstimationAnnotated`` - if
+        a successful reponse was received.
+
+        Parameters
+        ----------
+        src : str
+            The source text.
+        mt : str
+            The machine translation.
+        src_lang : str
+            The language of the source text, e.g. ``"English"``.
+        mt_lang : str
+            The language of the machine translation, e.g. ``"German"``.
+
+        Returns
+        -------
+        JudgeResult
+            The results of all LLMs in a result container, see ``JudgeResult``.
+
+        Raises
+        ------
+        RuntimeError
+            If the Judge instance is already closed.
+
+        Examples
+        --------
+        >>> from llm_judge import Judge
+        >>> judge = Judge(
+        ...     openai=False, anthropic=False, google=False, ollama="mistral:7b"
+        ... )
+        >>> jr = judge.score_and_annotate(
+        ...     src="The mitochondria is the powerhouse of the cell.",
+        ...     mt="Das Mitochondrium ist das Kraftwerk der Zelle.",
+        ...     src_lang="English",
+        ...     mt_lang="German",
+        ... )
+        >>> type(jr)
+        <class 'llm_judge._judge.JudgeResult'>
+        >>> jr.openai is None
+        True
+        >>> jr.anthropic is None
+        True
+        >>> jr.google is None
+        True
+        >>> jr.ollama is None
+        False
+        >>> type(jr.ollama)
+        <class 'llm_judge._judge.JudgeModelResult'>
+        >>> jr.ollama.model
+        'mistral:7b'
+        >>> jr.ollama.score
+        0.95
+        >>> type(jr.ollama.quality_estimation)
+        <class 'llm_judge._translation.QualityEstimationAnnotated'>
+        >>> judge.close()
+
+        >>> from llm_judge import Judge
+        >>> judge = Judge(
+        ...     openai=False,
+        ...     anthropic=False,
+        ...     google=False,
+        ...     ollama=True,
+        ...     config="config/judge_config.toml",
+        ... )
+        >>> jr = judge.score_and_annotate(
+        ...     src="The mitochondria is the powerhouse of the cell.",
+        ...     mt="Das Mitochondrium ist das Kraftwerk der Zelle.",
+        ...     src_lang="English",
+        ...     mt_lang="German",
+        ... )
+        >>> type(jr)
+        <class 'llm_judge._judge.JudgeResult'>
+        >>> jr.openai is None
+        True
+        >>> jr.anthropic is None
+        True
+        >>> jr.google is None
+        True
+        >>> jr.ollama is None
+        False
+        >>> type(jr.ollama)
+        <class 'llm_judge._judge.JudgeModelResult'>
+        >>> jr.ollama.model
+        'qwen3.8:27b'
+        >>> jr.ollama.score
+        1.0
+        >>> type(jr.ollama.quality_estimation)
+        <class 'llm_judge._translation.QualityEstimationAnnotated'>
+        >>> judge.close()
+        """
+        if self.closed:
+            logger.error("Judge instance is already closed!")
+            raise RuntimeError("Judge instance is already closed!")
+
+        return JudgeResult(
+            openai=_OpenAIModel._get_openai_response(
+                client=self.__openai,
+                schema=QualityEstimationAnnotated,
+                config=self.config,
+                src=src,
+                mt=mt,
+                src_lang=src_lang,
+                mt_lang=mt_lang,
+            ),
+            anthropic=_AnthropicModel._get_anthropic_response(
+                client=self.__anthropic,
+                schema=QualityEstimationAnnotated,
+                config=self.config,
+                src=src,
+                mt=mt,
+                src_lang=src_lang,
+                mt_lang=mt_lang,
+            ),
+            google=_GoogleModel._get_gemini_response(
+                client=self.__google,
+                schema=QualityEstimationAnnotated,
+                config=self.config,
+                src=src,
+                mt=mt,
+                src_lang=src_lang,
+                mt_lang=mt_lang,
+            ),
+            ollama=_OllamaModel._get_ollama_response(
+                client=self.__ollama,
+                schema=QualityEstimationAnnotated,
                 config=self.config,
                 src=src,
                 mt=mt,
