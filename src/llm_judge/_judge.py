@@ -96,7 +96,7 @@ class JudgeModelResult(BaseModel):
         Literal["ok", "error"],
         Field(frozen=True, description="Status of the response."),
     ]
-    r"""Status of the response. Can be 'ok' or 'error'. Only 'ok' denote a successful response."""
+    r"""Status of the response. Can be 'ok' or 'error'. Only 'ok' denotes a successful response."""
     parameters: Annotated[
         Optional[dict[str, str]],
         Field(frozen=True, description="Additional parameters passed to the LLM."),
