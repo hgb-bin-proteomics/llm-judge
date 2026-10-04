@@ -143,6 +143,42 @@ False
 <class 'llm_judge._judge.JudgeModelResult'>
 >>> jr.ollama.model
 'qwen3.8:27b'
+>>> type(jr.ollama.quality_estimation)
+<class 'llm_judge._translation.QualityEstimation'>
+>>> jr.ollama.score
+1.0
+>>> judge.close()
+
+>>> from llm_judge import Judge
+>>> judge = Judge(
+...     openai=False,
+...     anthropic=False,
+...     google=False,
+...     ollama=True,
+...     config="config/judge_config.toml",
+... )
+>>> jr = judge.score_and_annotate(
+...     src="The mitochondria is the powerhouse of the cell.",
+...     mt="Das Mitochondrium ist das Kraftwerk der Zelle.",
+...     src_lang="English",
+...     mt_lang="German",
+... )
+>>> type(jr)
+<class 'llm_judge._judge.JudgeResult'>
+>>> jr.openai is None
+True
+>>> jr.anthropic is None
+True
+>>> jr.google is None
+True
+>>> jr.ollama is None
+False
+>>> type(jr.ollama)
+<class 'llm_judge._judge.JudgeModelResult'>
+>>> jr.ollama.model
+'qwen3.8:27b'
+>>> type(jr.ollama.quality_estimation)
+<class 'llm_judge._translation.QualityEstimationAnnotated'>
 >>> jr.ollama.score
 1.0
 >>> judge.close()
