@@ -87,6 +87,11 @@ Critical errors inhibit comprehension of the text. Major errors disrupt the
 flow, but what the text is trying to say is still understandable. Minor errors
 are technically errors, but do not disrupt the flow or hinder comprehension.
 
+Based on the source segment and machine translation surrounded with
+triple backticks, score the translation on a continuous scale from 0 to 100
+that starts with "No meaning preserved", goes through "Some meaning preserved",
+then "Most meaning preserved and few grammar mistakes", up to "Perfect meaning and grammar".
+
 Make sure your response is a strict and valid json object that could be parsed with
 json.loads() in python.
 """
