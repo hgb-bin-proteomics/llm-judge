@@ -177,10 +177,11 @@ class TranslationErrorNoerror(TranslationError):
 class QualityEstimation(BaseModel):
     quality_estimation_value: float = Field(
         ge=0.0,
-        le=1.0,
+        le=100.0,
         description=(
-            "The quality estimation of the translation given as a value between 0 and 1 "
-            "where 0 is complete gibberish and 1 would be a perfect translation."
+            "The quality estimation of the translation on a continuous scale from 0 to 100 "
+            "that starts with 'No meaning preserved', goes through 'Some meaning preserved', "
+            "then 'Most meaning preserved and few grammar mistakes', up to 'Perfect meaning and grammar'."
         ),
     )
 
