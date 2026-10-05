@@ -18,7 +18,10 @@ logger = logging.getLogger(__name__)
 
 
 def annotate_csv(
-    input_file: str, judge: Judge, output_file: Optional[str] = None
+    input_file: str,
+    judge: Judge,
+    score_only: bool = False,
+    output_file: Optional[str] = None,
 ) -> tuple[pl.DataFrame, list[JudgeResult]]:
     r"""Quality estimation for a list of translations in a '.csv' file using LLMs.
 
@@ -28,6 +31,9 @@ def annotate_csv(
         Path/name of the translations '.csv' file containing the columns ``src``, ``mt``, ``src_lang``, and ``mt_lang``.
     judge : Judge
         The judge to be used for quality estimation.
+    score_only : bool, default = False
+        If ``True`` translations will only be scored without error annotation. Internally, if ``True`` the function
+        ``Judge.score()`` is called, otherwise (default) ``Judge.score_and_annotate()`` is called.
     output_file : str, or None, default = None
         Path/name of the ouput file that should be written to disk. If ``None`` nothing is written to disk.
 
@@ -74,11 +80,20 @@ def annotate_csv(
         df.iter_rows(named=True), total=df.shape[0], desc=f"Annotating {input_file}..."
     ):
         # get JudgeResult
-        result = judge.score(
-            src=str(row["src"]).strip(),
-            mt=str(row["mt"]).strip(),
-            src_lang=str(row["src_lang"]).strip(),
-            mt_lang=str(row["mt_lang"]).strip(),
+        result = (
+            judge.score(
+                src=str(row["src"]).strip(),
+                mt=str(row["mt"]).strip(),
+                src_lang=str(row["src_lang"]).strip(),
+                mt_lang=str(row["mt_lang"]).strip(),
+            )
+            if score_only
+            else judge.score_and_annotate(
+                src=str(row["src"]).strip(),
+                mt=str(row["mt"]).strip(),
+                src_lang=str(row["src_lang"]).strip(),
+                mt_lang=str(row["mt_lang"]).strip(),
+            )
         )
         # save a json-able object
         json_data.append(result.model_dump(mode="json"))
