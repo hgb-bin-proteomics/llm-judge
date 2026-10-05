@@ -60,7 +60,7 @@ SYSTEM_INSTRUCTION_SCORE = """
 You are an annotator for the quality of machine translation. Your task is to
 assess the quality of the translation.
 
-Based on the source segment and machine translation surrounded with 
+Based on the source segment and machine translation surrounded with
 triple backticks, score the translation on a continuous scale from 0 to 100
 that starts with "No meaning preserved", goes through "Some meaning preserved",
 then "Most meaning preserved and few grammar mistakes", up to "Perfect meaning and grammar".
@@ -74,12 +74,12 @@ SYSTEM_INSTRUCTION_ANNOTATE = """
 You are an annotator for the quality of machine translation. Your task is to
 identify errors and assess the quality of the translation.
 
-Based on the source segment and machine translation surrounded with 
+Based on the source segment and machine translation surrounded with
 triple backticks, identify error types in the translation and classify them.
 
-The categories of errors are: accuracy (addition, mistranslation, omission, 
-untranslated text), fluency (character encoding, grammar, inconsistency, 
-punctuation, register, spelling), style (awkward), terminology (inappropriate 
+The categories of errors are: accuracy (addition, mistranslation, omission,
+untranslated text), fluency (character encoding, grammar, inconsistency,
+punctuation, register, spelling), style (awkward), terminology (inappropriate
 for context , inconsistent use), non -translation, other, or no-error.
 
 Each error is classified as one of three severities: critical, major, and minor.
